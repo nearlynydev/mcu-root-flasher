@@ -3,8 +3,8 @@
 Root-only helper for IHU717P MCU experiments. It does not call
 `RecoverySystem.verifyPackage()` and does not install an OTA package. Instead it
 validates a local `mcu_update.zip`, extracts `fsl_app.s19` and `upgrade.dat`,
-copies them to `/tmp` with root, releases `/dev/ecp_uart_1`, and runs
-`/tmp/upgrade.dat`.
+mounts `/tmp` as `tmpfs`, copies the payload there with root, releases
+`/dev/ecp_uart_1`, and runs `/tmp/upgrade.dat`.
 
 Build:
 
@@ -24,6 +24,8 @@ Operational notes:
 - Default paths are scanned from `/storage/udisk*`, `/sdcard`, and
   `/sdcard/Download`.
 - The app writes a best-effort log to `/sdcard/mcu_root_flasher.log`.
+- The app creates `/tmp` when missing, mounts it as `tmpfs` with mode `0777`,
+  then remounts `/` back to read-only before flashing.
 - Signature verification is intentionally not performed; this is a direct root
   flasher, not a recovery OTA installer.
 - The app still checks the ZIP's JAR/v1 signature and warns when the signer is

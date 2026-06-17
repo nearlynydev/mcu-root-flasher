@@ -432,9 +432,14 @@ public class MainActivity extends Activity {
         StringBuilder sb = new StringBuilder();
         sb.append("set -u\n");
         sb.append("echo root=$(id)\n");
+        sb.append("echo preparing tmpfs /tmp\n");
         sb.append("mount -o remount,rw / 2>/dev/null || true\n");
         sb.append("mkdir -p /tmp\n");
         sb.append("chmod 0777 /tmp\n");
+        sb.append("if ! grep -q ' /tmp ' /proc/mounts; then mount -t tmpfs -o mode=0777,size=16m tmpfs /tmp || mount -t tmpfs tmpfs /tmp; fi\n");
+        sb.append("chmod 0777 /tmp\n");
+        sb.append("mount -o remount,ro / 2>/dev/null || true\n");
+        sb.append("grep ' /tmp ' /proc/mounts || echo WARNING_tmp_not_mounted\n");
         sb.append("cp ").append(sh(info.fslApp.getAbsolutePath())).append(" /tmp/fsl_app.s19\n");
         sb.append("cp ").append(sh(info.upgradeDat.getAbsolutePath())).append(" /tmp/upgrade.dat\n");
         sb.append("chmod 0644 /tmp/fsl_app.s19\n");
