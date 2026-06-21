@@ -155,12 +155,21 @@ Conclusion: **AEH ≠ AAC/Tugella** — a newer trim (Knewstar 2025 with AVM etc
 |---|---|---|
 | **AEH** (Knewstar 2025) | **Black screen** | `MIC_clear4` reads line `0x49`; on this board that reads such that the MCU mass-blanks GPIO `1..0x30` (cuts board peripherals). Tugella/AAC use line `0x48`, no blanking. |
 | **Tugella (BOH)** | Screen OK; **MTK download caught** by `mtkclient`; **cameras dead** | No `0x42→0x18` automaton → USB path to SoC stays free. No AVM cluster → Android (Knewstar 2025) doesn't get the camera management it expects. Workaround: **camera libs replaced with Tugella's**. |
-| **AAC** (Knewstar 2024, currently flashed) | **Black screen** (`brightness=0`) + **touch dead** + empty `vehi.config` | Backlight `0` from power policy under incomplete Vehicle Config; touch blocked by `ECarXPowerManagerService` (`isEnableTouch=false`) because the MCU reports a wrong ACC/`getCarKeyState` → IHU_OFF. `local_config` is valid (`1102a085…`) but `vehi.config` (F101) is nearly empty (`11 02 00…`). |
+| **AAC via manual `upgrade.dat`/UART** | **Black screen** (`brightness=0`) + **touch dead** + empty `vehi.config` | Backlight `0` from power policy under incomplete Vehicle Config; touch blocked by `ECarXPowerManagerService` (`isEnableTouch=false`) because the MCU reports a wrong ACC/`getCarKeyState` → IHU_OFF. `local_config` was valid (`1102a085…`) but `vehi.config` (F101) was nearly empty (`11 02 00…`). |
+| **Knewstar MCU via stock recovery / firmware-update** | **Everything works** (screen, touch, config) | The stock update mechanism flashes the MCU *and* initializes/writes the vehicle config correctly. The earlier fault was the **flashing method**, not the AAC firmware itself: manual `upgrade.dat`/UART left the config NVM incomplete; the stock recovery path does the full, correct sequence. |
 
-Current car configuration (2026-06): **Android system/vendor = Knewstar 2025**,
-**MCU = AAC (just flashed, previously Tugella)**, **camera libs = Tugella**.
-Backlight on AAC was temporarily restored via sysfs (`brightness=200`,
-`bl_power=0`) but not persisted (lost on reboot). ADB was at `172.20.10.11:5555`.
+**Incident resolution.** The black-screen/dead-touch state appeared only after a
+**manual `upgrade.dat`/UART** flash of AAC (incomplete vehicle config). It was
+resolved by reflashing the Knewstar MCU through the **stock recovery /
+firmware-update mechanism** — after which screen, touch and config are all fine.
+Lesson: **the flashing method matters** — use the stock recovery path (it writes
+config correctly), not raw `upgrade.dat`/UART, unless you also restore the
+vehicle config separately.
+
+Car configuration (after resolution): **Android system/vendor = Knewstar 2025**,
+**MCU = Knewstar (flashed via stock recovery)**, **camera libs = Tugella**.
+Everything working. (During the incident, ADB was at `172.20.10.11:5555`;
+backlight was temporarily restored via sysfs `brightness=200`/`bl_power=0`.)
 
 ---
 
@@ -176,15 +185,17 @@ Backlight on AAC was temporarily restored via sysfs (`brightness=200`,
    AAC/Tugella don't have those nodes.
 4. **Cameras (AVM)** exist only in AEH MCU. On AAC/Tugella they are driven by
    Android libs; there is no native AVM behavior without the AEH MCU.
-5. **The current fault (black screen + dead touch on AAC) is configuration.**
-   Screen = backlight off; touch = power-policy IHU_OFF from a wrong ACC. Prime
-   suspect — an **incomplete Vehicle Config (F101, `0x56`)**: `vehi.config` reads
-   `11 02 00…` while `local_config` (`0x69`) is valid. Last time this was fixed by
-   **importing the config via `ecarx.debugtools/.prop.SysPropAct`** (a
-   `local_config` file on USB → import), which writes the config into the MCU over ECP.
-6. **MCU flashing is safe enough:** there is a built-in `reset_inhibit` (armed in
-   FOTA mode) that suppresses the comm-timeout watchdog during an update; and a
-   proven rollback path (Tugella ↔ AAC via upgrade.dat/UART).
+5. **The flashing method matters more than the build.** The black-screen/dead-
+   touch state came from a **manual `upgrade.dat`/UART** flash that left the
+   vehicle config NVM incomplete (`vehi.config` = `11 02 00…` / F101 mostly empty)
+   → wrong ACC → power-policy IHU_OFF → touch blocked, backlight off — even though
+   `local_config` (`0x69`) was valid. **Reflashing via the stock recovery /
+   firmware-update mechanism fixed it** (it writes/initializes config correctly).
+   If you must use raw `upgrade.dat`/UART, restore the vehicle config separately
+   (e.g. import via `ecarx.debugtools/.prop.SysPropAct`).
+6. **MCU flashing is recoverable:** prefer the stock recovery path; there is also
+   a built-in `reset_inhibit` (armed in FOTA mode) that suppresses the
+   comm-timeout watchdog during an update; rollback Tugella ↔ Knewstar is proven.
 
 ---
 
